@@ -1,0 +1,48 @@
+name: Daily Crypto Tracker
+
+on:
+  schedule:
+    # Jalan otomatis setiap jam 08:00 WIB (01:00 UTC)
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-crypto:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Fetch Crypto Prices
+        run: |
+          # Mengambil harga BTC dan ETH dari Binance API
+          BTC_JSON=$(curl -s "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
+          ETH_JSON=$(curl -s "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT")
+          
+          # Mengekstrak harga menggunakan jq dan memformatnya
+          BTC_PRICE=$(echo $BTC_JSON | jq -r '.price' | awk '{printf "%.2f", $1}')
+          ETH_PRICE=$(echo $ETH_JSON | jq -r '.price' | awk '{printf "%.2f", $1}')
+          
+          # Menyimpan harga BTC ke environment variable untuk pesan commit
+          echo "btc_price=$BTC_PRICE" >> $GITHUB_ENV
+          
+          # Menulis ke file crypto_log.md
+          echo "### 📈 Daily Crypto Market Update" > crypto_log.md
+          echo "- **Bitcoin (BTC):** $BTC_PRICE USDT" >> crypto_log.md
+          echo "- **Ethereum (ETH):** $ETH_PRICE USDT" >> crypto_log.md
+          echo "" >> crypto_log.md
+          echo "_Last updated on: $(TZ='Asia/Jakarta' date)_" >> crypto_log.md
+
+      - name: Commit and Push
+        run: |
+          git config --local user.email "haqikuy470@gmail.com"
+          git config --local user.name "HaqiKuy470"
+          
+          git add crypto_log.md
+          
+          # Pesan commit dinamis menampilkan harga BTC terkini
+          git commit -m "data: update crypto prices (BTC at $${{ env.btc_price }})" || echo "No changes to commit"
+          git push
